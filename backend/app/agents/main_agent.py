@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
 from app.agents.analyst import create_analyst_agent
+from app.agents.gate import gated_tool
 from app.common.db import make_engine
 from app.common.llm import extract_text, make_llm
 from app.lib.grafana_panel_toolkit import GrafanaPanelToolKit
@@ -48,19 +49,31 @@ def create_main_agent(
     dashboard_uid: str | None = None,
     grafana_url: str | None = None,
     grafana_token: str | None = None,
+    gated: bool = False,
+    use_checkpointer: bool = True,
 ):
+    """Construye el grafo del agente principal.
+
+    - gated=True: las tools de escritura pasan por el gate de aprobación (interrupt).
+      Úsalo al servir por FastAPI/CopilotKit. En CLI conviene gated=False.
+    - use_checkpointer: MemorySaver para persistir el historial en el state.
+    """
     engine = engine or make_engine()
     llm = make_llm()
 
     analyst = create_analyst_agent(engine=engine, llm=llm)
     tools = [_build_invoke_analyst_tool(analyst)]
 
-    # Tools de lectura sobre el dashboard vivo (si hay credenciales de Grafana).
-    # Las tools de ESCRITURA se añadirán tras el gate de aprobación en la Fase 2.
+    # Tools sobre el dashboard vivo (si hay credenciales de Grafana).
     if dashboard_uid and grafana_url and grafana_token:
         panel_kit = GrafanaPanelToolKit(grafana_url, grafana_token, dashboard_uid, engine)
         tools += panel_kit.read_tools()
+        write_tools = panel_kit.write_tools()
+        tools += [gated_tool(t) for t in write_tools] if gated else write_tools
 
     return create_react_agent(
-        llm, tools, prompt=MAIN_SYSTEM_PROMPT, checkpointer=MemorySaver()
+        llm,
+        tools,
+        prompt=MAIN_SYSTEM_PROMPT,
+        checkpointer=MemorySaver() if use_checkpointer else None,
     )

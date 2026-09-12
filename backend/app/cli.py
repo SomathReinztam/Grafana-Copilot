@@ -19,7 +19,22 @@ def _ask(agent, config, text: str) -> str:
 
 
 def main() -> None:
-    agent = create_main_agent()
+    # Intenta conectar con Grafana para exponer tools de paneles (sin gate en CLI).
+    dashboard_uid = grafana_url = grafana_token = None
+    try:
+        from app.grafana_bootstrap import bootstrap_grafana
+
+        grafana_url, grafana_token, dashboard_uid = bootstrap_grafana()
+        print(f"[Grafana conectado] dashboard uid={dashboard_uid}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[Grafana no disponible: {e}] — sigo solo con análisis de datos.")
+
+    agent = create_main_agent(
+        dashboard_uid=dashboard_uid,
+        grafana_url=grafana_url,
+        grafana_token=grafana_token,
+        gated=False,
+    )
     config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
     if len(sys.argv) > 1:  # one-shot
