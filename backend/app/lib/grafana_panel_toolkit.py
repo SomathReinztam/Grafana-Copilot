@@ -3,6 +3,7 @@
 Reutilizado de chatGrafana (como librería). Las tools de ESCRITURA
 (create/edit/delete) se envolverán en el gate de aprobación humana en la Fase 2.
 """
+import base64
 import json
 from typing import Any, Dict, List, Sequence
 
@@ -68,6 +69,30 @@ class GrafanaPanelToolKit:
         if not r.ok:
             return f"Error al actualizar dashboard: {r.text}"
         return "Dashboard actualizado exitosamente en Grafana."
+
+    def render_panel_png(
+        self,
+        panel_id: int,
+        from_: str = "now-30y",
+        to_: str = "now",
+        width: int = 1000,
+        height: int = 500,
+    ) -> tuple[str | None, str | None]:
+        """Renderiza un panel a PNG (via image-renderer) y lo devuelve como base64.
+        Returns (base64, error)."""
+        url = (
+            f"{self.grafana_url}/render/d-solo/{self.dashboard_uid}/x"
+            f"?panelId={panel_id}&width={width}&height={height}&from={from_}&to={to_}"
+        )
+        try:
+            r = requests.get(url, headers={"Authorization": self.headers["Authorization"]}, timeout=40)
+            if not r.ok:
+                return None, f"HTTP {r.status_code}"
+            if not r.headers.get("content-type", "").startswith("image"):
+                return None, "la respuesta no es una imagen (¿image-renderer activo?)"
+            return base64.b64encode(r.content).decode(), None
+        except Exception as e:  # noqa: BLE001
+            return None, str(e)
 
     # --- read tools ---
 

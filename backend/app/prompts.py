@@ -35,5 +35,10 @@ arma el JSON válido por ti. Reglas de SQL:
 - Para `barchart`/`piechart`, la 1ª columna es la categoría (texto) y la 2ª el valor numérico.
 - Verifica nombres reales de tablas/columnas con el analista antes de escribir el SQL.
 
+Tienes VISIÓN: con `look_at_panel(panel_id)` puedes ver el panel realmente renderizado
+(tendencias, huecos, ejes, colores) para diagnosticar de forma visual, no solo por SQL.
+Úsalo cuando ayude a responder mejor; máximo 5 imágenes activas, así que sé estratégico
+sobre qué paneles miras.
+
 Sé claro y conciso. Explica lo que encuentras y propón próximos pasos concretos.
 """

@@ -13,6 +13,7 @@ from sqlalchemy.engine import Engine
 
 from app.agents.analyst import create_analyst_agent
 from app.agents.gate import gated_tool
+from app.agents.vision import build_look_at_panel_tool, image_buffer_hook
 from app.common.db import make_engine
 from app.common.llm import extract_text, make_llm
 from app.lib.grafana_panel_toolkit import GrafanaPanelToolKit
@@ -52,6 +53,7 @@ def create_main_agent(
     datasource_uid: str | None = None,
     datasource_type: str = "grafana-postgresql-datasource",
     gated: bool = False,
+    vision: bool = True,
     use_checkpointer: bool = True,
 ):
     """Construye el grafo del agente principal.
@@ -65,6 +67,7 @@ def create_main_agent(
 
     analyst = create_analyst_agent(engine=engine, llm=llm)
     tools = [_build_invoke_analyst_tool(analyst)]
+    pre_model_hook = None
 
     # Tools sobre el dashboard vivo (si hay credenciales de Grafana).
     if dashboard_uid and grafana_url and grafana_token:
@@ -79,10 +82,14 @@ def create_main_agent(
         tools += panel_kit.read_tools()
         write_tools = panel_kit.write_tools()
         tools += [gated_tool(t) for t in write_tools] if gated else write_tools
+        if vision:
+            tools.append(build_look_at_panel_tool(panel_kit))
+            pre_model_hook = image_buffer_hook  # cap de 5 imágenes activas
 
     return create_react_agent(
         llm,
         tools,
         prompt=MAIN_SYSTEM_PROMPT,
+        pre_model_hook=pre_model_hook,
         checkpointer=MemorySaver() if use_checkpointer else None,
     )
