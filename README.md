@@ -37,25 +37,28 @@ Detalle completo en [`ARCHITECTURE.md`](./ARCHITECTURE.md); plan de build en [`P
 - **Frontend**: Next.js + **CopilotKit** (`@copilotkit/react-core`) + `@ag-ui/client`.
 - **Infra**: Grafana + `grafana-image-renderer` (Docker). Postgres del usuario (demo: northwind).
 
-## Quickstart
-Requisitos: Docker, Python 3.12+, Node 20+, una API key de Gemini.
+## Quickstart (todo en Docker)
+Requisitos: Docker, una API key de Gemini. (La BD del usuario va aparte; para pruebas,
+northwind publicado en `localhost:5434` con su propio compose.)
 ```bash
-# 0) base de datos de prueba (northwind) publicada en localhost:5434 (su propio compose)
+cp .env.example .env            # pon tu GOOGLE_API_KEY en .env
+make up                         # construye y levanta grafana + renderer + backend + frontend
+# abre  http://localhost:3001   (Grafana en :3000, agente en :8000)
 
-# 1) infra Grafana + renderer
-cp .env.example .env
-make infra                      # http://localhost:3000 (admin/admin)
+make fresh                      # reset TOTAL: down -v y levanta de cero (dashboard limpio)
+make down                       # baja los contenedores (conserva el volumen)
+make reset                      # solo vacía el dashboard de demo
+```
+`docker compose down -v` borra únicamente el volumen de Grafana; el bootstrap del backend
+recrea token, dashboard y datasource al levantar. Tu Postgres (otro compose) no se toca.
 
-# 2) backend (agente)
-make install                    # venv + deps de backend y frontend
+### Modo dev (app en el host, solo Grafana en Docker)
+```bash
+make install                    # venv backend + npm frontend
+make dev-infra                  # grafana + renderer
 echo "GOOGLE_API_KEY=..." >> backend/.env
-make backend                    # http://localhost:8000
-
-# 3) frontend
-make frontend                   # http://localhost:3001
-
-# limpiar el dashboard para grabar la demo:
-make reset
+make dev-backend                # :8000
+make dev-frontend               # :3001
 ```
 
 ## Qué se construyó durante el hackathon (elegibilidad)

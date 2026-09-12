@@ -1,28 +1,44 @@
-.PHONY: help infra backend frontend reset down install
+.PHONY: help up fresh build down reset logs dev-infra dev-backend dev-frontend install
 
 help:
-	@echo "make install   - instala deps de backend (venv) y frontend"
-	@echo "make infra     - levanta Grafana + image-renderer (docker compose)"
-	@echo "make backend   - corre el agente (FastAPI/AG-UI) en :8000"
-	@echo "make frontend  - corre la web app (Next.js) en :3001"
-	@echo "make reset     - deja el dashboard de demo vacío (para grabar)"
-	@echo "make down      - baja los contenedores de Grafana"
+	@echo "── Todo en Docker ──"
+	@echo "make up      - construye y levanta TODO (grafana, renderer, backend, frontend)"
+	@echo "make fresh   - reset total (down -v) y vuelve a levantar de cero"
+	@echo "make down    - baja los contenedores (conserva el volumen)"
+	@echo "make reset   - deja el dashboard de demo vacío (sin borrar nada más)"
+	@echo "make logs    - sigue los logs de backend y frontend"
+	@echo "── Modo dev (sin dockerizar la app) ──"
+	@echo "make install / dev-infra / dev-backend / dev-frontend"
 
+# --- Docker (todo el stack) ---
+up:
+	docker compose up -d --build
+
+fresh:
+	docker compose down -v && docker compose up -d --build
+
+build:
+	docker compose build
+
+down:
+	docker compose down
+
+logs:
+	docker compose logs -f backend frontend
+
+reset:
+	docker compose exec backend python -m app.reset_demo
+
+# --- Modo dev (app en el host, solo Grafana en Docker) ---
 install:
 	cd backend && python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 	cd frontend && npm install
 
-infra:
-	docker compose up -d
+dev-infra:
+	docker compose up -d grafana renderer
 
-backend:
+dev-backend:
 	cd backend && ./.venv/bin/uvicorn app.api:app --port 8000 --reload
 
-frontend:
+dev-frontend:
 	cd frontend && npm run dev
-
-reset:
-	cd backend && ./.venv/bin/python -m app.reset_demo
-
-down:
-	docker compose down

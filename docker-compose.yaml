@@ -43,6 +43,53 @@ services:
       - ENABLE_METRICS=false
       - AUTH_TOKEN=${RENDERER_TOKEN:-copilot-renderer-token}
 
+  backend:
+    build: ./backend
+    container_name: grafana-copilot-backend
+    restart: unless-stopped
+    environment:
+      # Server-side: alcanza a Grafana por el nombre de servicio de la red docker
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # BD del usuario, publicada en el host (northwind -> :5434)
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5434}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-postgres}
+      - DB_NAME=${DB_NAME:-northwind}
+      # LLM
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
+    ports:
+      - '8000:8000'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      - grafana
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_* las usa el NAVEGADOR -> localhost
+        - NEXT_PUBLIC_GRAFANA_URL=http://localhost:${GRAFANA_PORT:-3000}
+        - NEXT_PUBLIC_DASHBOARD_UID=copilot-main
+        - NEXT_PUBLIC_AGUI_URL=http://localhost:8000/agui
+    container_name: grafana-copilot-frontend
+    restart: unless-stopped
+    environment:
+      # Server-side (/api/context): alcanza a Grafana por la red docker
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - DASHBOARD_UID=copilot-main
+    ports:
+      - '3001:3001'
+    depends_on:
+      - backend
+      - grafana
+
 volumes:
   grafana_copilot_storage:
 

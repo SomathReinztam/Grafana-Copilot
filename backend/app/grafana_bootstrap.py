@@ -1,6 +1,7 @@
 """Bootstrap de Grafana: obtiene un token de service account y garantiza que exista
 un dashboard sobre el cual el agente pueda actuar."""
 import json
+import time
 
 import requests
 
@@ -8,6 +9,19 @@ from app.lib.grafana_helper import GrafanaHelper
 from app.settings import settings
 
 COPILOT_DASHBOARD_UID = "copilot-main"
+
+
+def wait_for_grafana(base_url: str, timeout: int = 120) -> bool:
+    """Espera a que Grafana responda /api/health (útil en Docker)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if requests.get(f"{base_url}/api/health", timeout=3).ok:
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(2)
+    return False
 
 
 def ensure_dashboard(
@@ -54,6 +68,7 @@ def get_datasource(base_url: str, token: str) -> tuple[str | None, str | None]:
 
 def bootstrap_grafana() -> tuple[str, str, str, str | None, str | None]:
     """Devuelve (grafana_url, token, dashboard_uid, datasource_uid, datasource_type)."""
+    wait_for_grafana(settings.grafana_url)
     helper = GrafanaHelper(
         settings.grafana_url, settings.grafana_admin_user, settings.grafana_admin_password
     )
