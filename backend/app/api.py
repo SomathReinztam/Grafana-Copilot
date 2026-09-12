@@ -62,9 +62,43 @@ def _build_agui_agent():
 _agui_agent = _build_agui_agent()
 
 
+def _sanitize_messages(messages: list):
+    """Quita tool_calls sin su ToolMessage (y resultados huérfanos). Un run que falla a
+    mitad deja el historial del cliente inconsistente; sin esto, el siguiente mensaje
+    revienta con 'AIMessages with tool_calls that do not have a corresponding ToolMessage'."""
+    result_ids = {
+        m.tool_call_id
+        for m in messages
+        if getattr(m, "role", None) == "tool" and getattr(m, "tool_call_id", None)
+    }
+    call_ids = set()
+    for m in messages:
+        if getattr(m, "role", None) == "assistant":
+            for tc in getattr(m, "tool_calls", None) or []:
+                call_ids.add(tc.id)
+
+    cleaned = []
+    for m in messages:
+        role = getattr(m, "role", None)
+        if role == "assistant" and getattr(m, "tool_calls", None):
+            kept = [tc for tc in m.tool_calls if tc.id in result_ids]
+            if kept:
+                cleaned.append(m.model_copy(update={"tool_calls": kept}))
+            elif (getattr(m, "content", None) or "").strip():
+                cleaned.append(m.model_copy(update={"tool_calls": None}))
+            # si no hay ni resultado ni texto → se descarta el mensaje
+        elif role == "tool":
+            if getattr(m, "tool_call_id", None) in call_ids:
+                cleaned.append(m)  # descarta resultados huérfanos
+        else:
+            cleaned.append(m)
+    return cleaned
+
+
 @app.post("/agui")
 async def agui(input: RunAgentInput, request: Request):
     encoder = EventEncoder(accept=request.headers.get("accept"))
+    input = input.model_copy(update={"messages": _sanitize_messages(input.messages)})
 
     async def event_stream():
         async for event in _agui_agent.run(input):
