@@ -53,7 +53,10 @@ def _build_agui_agent():
         datasource_type=ds_type or "grafana-postgresql-datasource",
         gated=True,  # las escrituras pasan por el gate (interrupt AG-UI)
     )
-    return AGUILangGraphAgent(name="grafana_copilot", graph=graph)
+    # recursion_limit alto: construir un dashboard completo hace muchas tool calls
+    return AGUILangGraphAgent(
+        name="grafana_copilot", graph=graph, config={"recursion_limit": 100}
+    )
 
 
 _agui_agent = _build_agui_agent()
