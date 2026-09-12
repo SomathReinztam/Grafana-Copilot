@@ -1,13 +1,18 @@
-"""Servidor FastAPI que expone el agente vía CopilotKit (protocolo AG-UI).
+"""Servidor FastAPI que expone el agente por el protocolo AG-UI (nativo).
 
 Arranque:
   cd backend && ./.venv/bin/uvicorn app.api:app --reload --port 8000
 
-El frontend (Fase 2) apunta su CopilotKit runtime a /copilotkit.
+El frontend (react-core 1.71 = AG-UI) se conecta a POST /agui con @ag-ui/client HttpAgent.
 """
 import logging
 
-from fastapi import FastAPI
+from ag_ui.core import RunAgentInput
+from ag_ui.encoder import EventEncoder
+from ag_ui_langgraph import LangGraphAgent as AGUILangGraphAgent
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from app.agents.main_agent import create_main_agent
 from app.common.db import make_engine
@@ -17,8 +22,14 @@ logger = logging.getLogger("grafana-copilot")
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Grafana Copilot Agent")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
-# Contexto compartido del arranque (para el frontend y debugging)
 STATE: dict = {"dashboard_uid": None, "grafana_url": None}
 
 
@@ -27,38 +38,31 @@ def health() -> dict:
     return {"status": "ok", **STATE}
 
 
-def _build_graph():
+def _build_agui_agent():
     engine = make_engine()
     grafana_url, token, dash_uid = bootstrap_grafana()
     STATE["dashboard_uid"] = dash_uid
     STATE["grafana_url"] = grafana_url
     logger.info("Grafana bootstrap OK — dashboard uid=%s", dash_uid)
-    # gated=True: las escrituras pasan por el gate de aprobación (interrupt)
-    return create_main_agent(
+    graph = create_main_agent(
         engine=engine,
         dashboard_uid=dash_uid,
         grafana_url=grafana_url,
         grafana_token=token,
-        gated=True,
+        gated=True,  # las escrituras pasan por el gate (interrupt AG-UI)
     )
+    return AGUILangGraphAgent(name="grafana_copilot", graph=graph)
 
 
-# Registrar el agente en CopilotKit
-try:
-    from copilotkit import CopilotKitRemoteEndpoint, LangGraphAGUIAgent
-    from copilotkit.integrations.fastapi import add_fastapi_endpoint
+_agui_agent = _build_agui_agent()
 
-    _graph = _build_graph()
-    _sdk = CopilotKitRemoteEndpoint(
-        agents=[
-            LangGraphAGUIAgent(
-                name="grafana_copilot",
-                description="Agente que construye y edita dashboards de Grafana sobre Postgres.",
-                graph=_graph,
-            )
-        ]
-    )
-    add_fastapi_endpoint(app, _sdk, "/copilotkit")
-    logger.info("CopilotKit endpoint montado en /copilotkit")
-except Exception:  # noqa: BLE001
-    logger.exception("No se pudo montar el endpoint de CopilotKit")
+
+@app.post("/agui")
+async def agui(input: RunAgentInput, request: Request):
+    encoder = EventEncoder(accept=request.headers.get("accept"))
+
+    async def event_stream():
+        async for event in _agui_agent.run(input):
+            yield encoder.encode(event)
+
+    return StreamingResponse(event_stream(), media_type=encoder.get_content_type())
