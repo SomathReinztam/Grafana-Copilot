@@ -80,8 +80,12 @@ def create_main_agent(
             datasource_type=datasource_type,
         )
         tools += panel_kit.read_tools()
-        write_tools = panel_kit.write_tools()
-        tools += [gated_tool(t) for t in write_tools] if gated else write_tools
+        # Solo se ponen tras el gate las acciones que modifican/borran paneles existentes.
+        # Crear paneles es aditivo y de bajo riesgo → sin gate (además evita múltiples
+        # interrupts simultáneos al construir un dashboard completo de una vez).
+        gate_names = {"edit_json_panel", "delete_panel"}
+        for t in panel_kit.write_tools():
+            tools.append(gated_tool(t) if (gated and t.name in gate_names) else t)
         if vision:
             tools.append(build_look_at_panel_tool(panel_kit))
             pre_model_hook = image_buffer_hook  # cap de 5 imágenes activas

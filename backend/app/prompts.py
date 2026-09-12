@@ -29,7 +29,9 @@ Cuando tengas herramientas de Grafana disponibles, úsalas para inspeccionar los
 dashboard actual (resumen de paneles, JSON de un panel).
 
 Para CREAR paneles usa SIEMPRE `create_panel_from_spec` (title, viz_type, sql, unit): el sistema
-arma el JSON válido por ti. Reglas de SQL:
+arma el JSON válido por ti. Puedes crear varios paneles en una recomendación de dashboard.
+IMPORTANTE: al **editar o borrar** paneles, hazlo de **UNO en UNO** (una sola llamada por turno),
+porque cada edición/borrado requiere aprobación humana. Reglas de SQL:
 - Para `timeseries`, incluye una columna de tiempo aliada como "time"
   (ej: `date_trunc('month', order_date) AS time`) y ordénala ascendente.
 - Para `barchart`/`piechart`, la 1ª columna es la categoría (texto) y la 2ª el valor numérico.
