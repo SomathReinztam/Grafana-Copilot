@@ -40,15 +40,17 @@ def health() -> dict:
 
 def _build_agui_agent():
     engine = make_engine()
-    grafana_url, token, dash_uid = bootstrap_grafana()
+    grafana_url, token, dash_uid, ds_uid, ds_type = bootstrap_grafana()
     STATE["dashboard_uid"] = dash_uid
     STATE["grafana_url"] = grafana_url
-    logger.info("Grafana bootstrap OK — dashboard uid=%s", dash_uid)
+    logger.info("Grafana bootstrap OK — dashboard uid=%s datasource=%s", dash_uid, ds_uid)
     graph = create_main_agent(
         engine=engine,
         dashboard_uid=dash_uid,
         grafana_url=grafana_url,
         grafana_token=token,
+        datasource_uid=ds_uid,
+        datasource_type=ds_type or "grafana-postgresql-datasource",
         gated=True,  # las escrituras pasan por el gate (interrupt AG-UI)
     )
     return AGUILangGraphAgent(name="grafana_copilot", graph=graph)

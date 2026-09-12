@@ -37,11 +37,27 @@ def ensure_dashboard(
     return uid
 
 
-def bootstrap_grafana() -> tuple[str, str, str]:
-    """Devuelve (grafana_url, token, dashboard_uid)."""
+def get_datasource(base_url: str, token: str) -> tuple[str | None, str | None]:
+    """Devuelve (uid, type) del datasource Postgres (default o el primero)."""
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.get(f"{base_url}/api/datasources", headers=headers)
+    if not r.ok:
+        return None, None
+    dss = r.json()
+    ds = (
+        next((d for d in dss if d.get("isDefault")), None)
+        or next((d for d in dss if "postgres" in (d.get("type") or "")), None)
+        or (dss[0] if dss else None)
+    )
+    return (ds.get("uid"), ds.get("type")) if ds else (None, None)
+
+
+def bootstrap_grafana() -> tuple[str, str, str, str | None, str | None]:
+    """Devuelve (grafana_url, token, dashboard_uid, datasource_uid, datasource_type)."""
     helper = GrafanaHelper(
         settings.grafana_url, settings.grafana_admin_user, settings.grafana_admin_password
     )
     token = helper.ensure_token()
     uid = ensure_dashboard(settings.grafana_url, token)
-    return settings.grafana_url, token, uid
+    ds_uid, ds_type = get_datasource(settings.grafana_url, token)
+    return settings.grafana_url, token, uid, ds_uid, ds_type

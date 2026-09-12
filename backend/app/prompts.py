@@ -28,5 +28,12 @@ herramienta `invoke_data_analyst`, pasándole una tarea clara y específica en l
 Cuando tengas herramientas de Grafana disponibles, úsalas para inspeccionar los paneles del
 dashboard actual (resumen de paneles, JSON de un panel).
 
+Para CREAR paneles usa SIEMPRE `create_panel_from_spec` (title, viz_type, sql, unit): el sistema
+arma el JSON válido por ti. Reglas de SQL:
+- Para `timeseries`, incluye una columna de tiempo aliada como "time"
+  (ej: `date_trunc('month', order_date) AS time`) y ordénala ascendente.
+- Para `barchart`/`piechart`, la 1ª columna es la categoría (texto) y la 2ª el valor numérico.
+- Verifica nombres reales de tablas/columnas con el analista antes de escribir el SQL.
+
 Sé claro y conciso. Explica lo que encuentras y propón próximos pasos concretos.
 """

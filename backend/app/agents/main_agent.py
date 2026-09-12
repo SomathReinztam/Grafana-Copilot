@@ -49,6 +49,8 @@ def create_main_agent(
     dashboard_uid: str | None = None,
     grafana_url: str | None = None,
     grafana_token: str | None = None,
+    datasource_uid: str | None = None,
+    datasource_type: str = "grafana-postgresql-datasource",
     gated: bool = False,
     use_checkpointer: bool = True,
 ):
@@ -66,7 +68,14 @@ def create_main_agent(
 
     # Tools sobre el dashboard vivo (si hay credenciales de Grafana).
     if dashboard_uid and grafana_url and grafana_token:
-        panel_kit = GrafanaPanelToolKit(grafana_url, grafana_token, dashboard_uid, engine)
+        panel_kit = GrafanaPanelToolKit(
+            grafana_url,
+            grafana_token,
+            dashboard_uid,
+            engine,
+            datasource_uid=datasource_uid,
+            datasource_type=datasource_type,
+        )
         tools += panel_kit.read_tools()
         write_tools = panel_kit.write_tools()
         tools += [gated_tool(t) for t in write_tools] if gated else write_tools

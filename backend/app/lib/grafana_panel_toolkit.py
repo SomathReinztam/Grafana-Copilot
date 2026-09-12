@@ -17,14 +17,36 @@ from sqlalchemy.engine.row import Row
 
 
 class GrafanaPanelToolKit:
-    def __init__(self, grafana_url: str, grafana_token: str, dashboard_uid: str, engine: Engine):
+    def __init__(
+        self,
+        grafana_url: str,
+        grafana_token: str,
+        dashboard_uid: str,
+        engine: Engine,
+        datasource_uid: str | None = None,
+        datasource_type: str = "grafana-postgresql-datasource",
+    ):
         self.grafana_url = grafana_url.rstrip("/")
         self.dashboard_uid = dashboard_uid
         self.engine = engine
+        self.datasource_uid = datasource_uid
+        self.datasource_type = datasource_type
         self.headers = {
             "Authorization": f"Bearer {grafana_token}",
             "Content-Type": "application/json",
         }
+
+    def _inject_datasource(self, panel: dict) -> None:
+        """Garantiza que el panel y sus targets apunten al datasource correcto (uid).
+        El LLM suele omitir el uid → panel vacío. Esto lo hace robusto."""
+        if not self.datasource_uid:
+            return
+        ds = {"type": self.datasource_type, "uid": self.datasource_uid}
+        if not (isinstance(panel.get("datasource"), dict) and panel["datasource"].get("uid")):
+            panel["datasource"] = ds
+        for t in panel.get("targets", []) or []:
+            if not (isinstance(t.get("datasource"), dict) and t["datasource"].get("uid")):
+                t["datasource"] = ds
 
     # --- helpers ---
 
@@ -89,10 +111,98 @@ class GrafanaPanelToolKit:
                 panel["id"] = (max(ids) if ids else 0) + 1
             if panel["id"] in ids:
                 return f"Error: el ID {panel['id']} ya existe. IDs usados: {ids}"
+            self._inject_datasource(panel)
             dash.setdefault("panels", []).append(panel)
             return self._save_dashboard(dash)
         except json.JSONDecodeError:
             return "Error: el string proporcionado no es un JSON válido."
+        except Exception as e:
+            return f"Error creando panel: {e}"
+
+    def _create_panel_from_spec(
+        self, title: str, viz_type: str, sql: str, unit: str = "", description: str = ""
+    ) -> str:
+        """Ensambla un panel COMPLETO y válido de Grafana desde una spec simple.
+        Robusto: el LLM no tiene que acertar el fieldConfig/options (que si faltan
+        dejan el panel vacío)."""
+        try:
+            dash = self._fetch_dashboard_json()
+            panels = dash.setdefault("panels", [])
+            ids = {p.get("id") for p in panels}
+            new_id = (max(ids) if ids else 0) + 1
+            n = len(panels)
+            grid = {"h": 8, "w": 12, "x": (n % 2) * 12, "y": (n // 2) * 8}
+            ds = {"type": self.datasource_type, "uid": self.datasource_uid}
+
+            defaults: dict = {
+                "color": {"mode": "palette-classic"},
+                "mappings": [],
+                "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": None}]},
+            }
+            if unit:
+                defaults["unit"] = unit
+
+            vt = (viz_type or "").lower().strip()
+            if vt in ("timeseries", "time_series", "line", "area"):
+                ptype = "timeseries"
+                defaults["custom"] = {
+                    "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2,
+                    "fillOpacity": 20, "gradientMode": "opacity", "showPoints": "auto",
+                    "axisPlacement": "auto", "spanNulls": False,
+                }
+                options = {
+                    "legend": {"displayMode": "list", "placement": "bottom", "showLegend": True},
+                    "tooltip": {"mode": "single", "sort": "none"},
+                }
+            elif vt in ("barchart", "bar", "bar_chart"):
+                ptype = "barchart"
+                defaults["custom"] = {
+                    "lineWidth": 1, "fillOpacity": 80, "gradientMode": "none",
+                    "axisPlacement": "auto", "thresholdsStyle": {"mode": "off"},
+                }
+                options = {
+                    "orientation": "horizontal", "showValue": "auto", "stacking": "none",
+                    "xTickLabelRotation": 0, "xTickLabelSpacing": 0,
+                    "legend": {"showLegend": False, "displayMode": "list", "placement": "bottom"},
+                    "tooltip": {"mode": "single", "sort": "none"},
+                }
+            elif vt in ("piechart", "pie"):
+                ptype = "piechart"
+                defaults["custom"] = {"hideFrom": {"tooltip": False, "viz": False, "legend": False}}
+                options = {
+                    "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": True},
+                    "pieType": "pie",
+                    "legend": {"displayMode": "list", "placement": "right", "showLegend": True},
+                    "tooltip": {"mode": "single", "sort": "none"},
+                }
+            elif vt == "stat":
+                ptype = "stat"
+                options = {
+                    "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+                    "orientation": "auto", "textMode": "auto", "colorMode": "value",
+                    "graphMode": "area", "justifyMode": "auto",
+                }
+            elif vt == "gauge":
+                ptype = "gauge"
+                options = {
+                    "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+                    "showThresholdLabels": False, "showThresholdMarkers": True,
+                }
+            else:
+                ptype = "table"
+                defaults["custom"] = {"align": "auto", "cellOptions": {"type": "auto"}}
+                options = {"showHeader": True}
+
+            panel = {
+                "id": new_id, "type": ptype, "title": title, "description": description,
+                "gridPos": grid, "datasource": ds,
+                "fieldConfig": {"defaults": defaults, "overrides": []},
+                "options": options,
+                "targets": [{"refId": "A", "format": "table", "rawSql": sql, "datasource": ds}],
+            }
+            panels.append(panel)
+            result = self._save_dashboard(dash)
+            return f"{result} (panel id={new_id}, tipo={ptype})"
         except Exception as e:
             return f"Error creando panel: {e}"
 
@@ -143,6 +253,20 @@ class GrafanaPanelToolKit:
     class CreateArgs(BaseModel):
         new_json_panel: str = Field(description="String con el JSON completo del nuevo panel.")
 
+    class CreateSpecArgs(BaseModel):
+        title: str = Field(description="Título del panel.")
+        viz_type: str = Field(
+            description="Tipo: timeseries | barchart | piechart | stat | gauge | table."
+        )
+        sql: str = Field(
+            description=(
+                "SELECT de PostgreSQL. Para timeseries, incluye una columna de tiempo "
+                "aliada como \"time\" (ej: date_trunc('month', order_date) AS time)."
+            )
+        )
+        unit: str = Field(default="", description="Unidad Grafana opcional (ej: currencyUSD, short, percent).")
+        description: str = Field(default="", description="Descripción opcional del panel.")
+
     class DeleteArgs(BaseModel):
         panel_id: int = Field(description="ID del panel a eliminar.")
 
@@ -167,8 +291,21 @@ class GrafanaPanelToolKit:
         """ESCRITURA — envolver en el gate de aprobación (Fase 2)."""
         return [
             StructuredTool.from_function(
+                name="create_panel_from_spec",
+                description=(
+                    "PREFERIDA para crear paneles. Ensambla un panel válido desde una spec simple "
+                    "(title, viz_type, sql, unit). El toolkit se encarga del fieldConfig, datasource "
+                    "y posición. Evita paneles vacíos por JSON incompleto."
+                ),
+                func=self._create_panel_from_spec,
+                args_schema=self.CreateSpecArgs,
+            ),
+            StructuredTool.from_function(
                 name="create_panel",
-                description="Agrega un nuevo panel al dashboard desde un string JSON válido.",
+                description=(
+                    "Avanzada: agrega un panel desde un string JSON completo. Usa create_panel_from_spec "
+                    "salvo que necesites control total del JSON."
+                ),
                 func=self._create_panel,
                 args_schema=self.CreateArgs,
             ),
