@@ -23,14 +23,15 @@ alcance, no se salta la siguiente. Vision y multi-analista son **capas encima**,
       `grafana_panel_toolkit`. `.env`/`.env.example` en root y backend.
 - [x] Verificado: `/api/health` OK, datasource conecta, **render de panel a PNG con datos reales OK**.
 
-## Fase 1 — Backend core: agente + 1 analista, solo texto (≈60 min)  · *DoD: conversación end-to-end*
-- [ ] FastAPI + runtime CopilotKit + grafo LangGraph del agente principal (Gemini).
-- [ ] Helper `extract_text()` para el contenido lista-de-dicts de Gemini (ver ARCHITECTURE §10).
-- [ ] Tools read: `get_current_dashboard_context` (stub por ahora), `get_panels_summary`,
-      `get_json_panel_by_id`.
-- [ ] Subagente analista (1 slot, secuencial) con `PostgresToolKit` + `invoke_data_analyst`.
-- [ ] `AgentState` con historial en state + `MemorySaver` (thread_id = sesión).
-- [ ] Probar por API: "¿qué tablas tiene mi BD?" → responde vía analista.
+## Fase 1 — Backend core: agente + 1 analista, solo texto ✅ COMPLETA  · *DoD: conversación end-to-end*
+- [x] Grafo LangGraph del agente principal (Gemini `gemini-3.8-flash`) — probado por CLI.
+      *(FastAPI + runtime CopilotKit → movido a Fase 2, se cablea con el frontend.)*
+- [x] Helper `extract_text()` para el contenido lista-de-dicts de Gemini.
+- [x] Tools read de Grafana (`get_panels_summary`, `get_json_panel_by_id`) listas para
+      enchufar cuando haya token. *(`get_current_dashboard_context` → Fase 2, necesita frontend.)*
+- [x] Subagente analista (1 slot, secuencial) con `PostgresToolKit` + `invoke_data_analyst`.
+- [x] Historial en el state del grafo + `MemorySaver` (thread_id = sesión).
+- [x] Probado: "¿qué tablas...?" → delega al analista → consulta northwind (14 tablas, 830 órdenes).
 
 ## Fase 2 — Frontend + escritura con gate (≈60 min)  · *DoD: crear/editar panel real con aprobación*
 - [ ] Web app React + CopilotKit, chat conectado al backend.
