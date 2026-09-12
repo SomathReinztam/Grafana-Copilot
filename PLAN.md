@@ -49,11 +49,13 @@ alcance, no se salta la siguiente. Vision y multi-analista son **capas encima**,
 - [x] **Flujo verificado end-to-end en navegador**: chat → gate → panel creado en Grafana.
 - [x] Fix: `create_panel_from_spec` para que los paneles del agente rendericen siempre.
 
-## Fase 3 — Vision (≈45 min)  · *DoD: el agente ve un panel y lo usa para editar*
-- [ ] Tool `look_at_panel(panel_id)` → PNG del renderer como tool result.
-- [ ] Paso de desalojo: buffer ≤5, reemplaza imagen vieja por stub de texto.
-- [ ] Confirmar modelo Gemini multimodal en el agente principal.
-- [ ] Probar **Flujo 4**: "ajústame este panel" → mira → propone → gate → edita.
+## Fase 3 — Vision ✅ COMPLETA  · *DoD: el agente ve un panel y lo usa para diagnosticar*
+- [x] Tool `look_at_panel(panel_id)` → render PNG inyectado como imagen (HumanMessage).
+- [x] Buffer ≤5 vía `image_buffer_hook` (pre_model_hook): desaloja las viejas a stub de
+      texto en `llm_input_messages` (sin mutar el state → pareo tool_call intacto).
+- [x] Gemini multimodal (`gemini-3.8-flash`) — confirmado interpretando la imagen.
+- [x] Verificado: el agente describió la tendencia del panel 1 y detectó el artefacto de
+      rango de tiempo SOLO desde la imagen; el desalojo mantiene 5 imágenes + 1 stub.
 
 ## Fase 4 — Pulido + demo (≈30 min)  · *DoD: demo de 2 min ensayada*
 - [ ] Sembrar escenario reproducible (dashboard + datos northwind).
