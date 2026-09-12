@@ -1,0 +1,51 @@
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-copilot
+    restart: unless-stopped
+    environment:
+      - GF_SERVER_ROOT_URL=http://localhost:${GRAFANA_PORT:-3000}
+      - GF_PLUGINS_PREINSTALL=grafana-clock-panel
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # --- Embedding: permite que la web app cargue paneles reales en <iframe> (d-solo) ---
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=none
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      # --- Image renderer (vision): produce el PNG de un panel via /render/... ---
+      - GF_RENDERING_SERVER_URL=http://renderer:8081/render
+      - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
+      - GF_RENDERING_RENDERER_TOKEN=${RENDERER_TOKEN:-copilot-renderer-token}
+      - GF_LOG_FILTERS=rendering:debug
+      # --- Credenciales que lee el datasource provisionado (infra/provisioning) ---
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5434}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_NAME=${DB_NAME:-northwind}
+      - DB_PASS=${DB_PASS:-postgres}
+    ports:
+      - '${GRAFANA_PORT:-3000}:3000'
+    # Permite al contenedor alcanzar el Postgres publicado en el host (northwind -> :5434)
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - grafana_copilot_storage:/var/lib/grafana
+      - ./infra/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - renderer
+
+  renderer:
+    image: grafana/grafana-image-renderer:latest
+    container_name: grafana-copilot-renderer
+    restart: unless-stopped
+    environment:
+      - ENABLE_METRICS=false
+      - AUTH_TOKEN=${RENDERER_TOKEN:-copilot-renderer-token}
+
+volumes:
+  grafana_copilot_storage:
+
+# NOTA: el Postgres del usuario NO va aquí (la idea es que traiga su propia BD).
+# Para pruebas se usa northwind, que corre en su propio docker-compose aparte
+# y se alcanza vía host.docker.internal:5434.

@@ -1,0 +1,24 @@
+apiVersion: 1
+
+# Datasource Postgres provisionado (infra-as-code).
+# El UID es FIJO ('northwind-pg') para que el agente pueda referenciarlo
+# de forma determinista al construir paneles.
+# Las credenciales vienen de variables de entorno (ver .env / docker-compose).
+datasources:
+  - name: Northwind Postgres
+    uid: northwind-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: ${DB_HOST}:${DB_PORT}
+    user: ${DB_USER}
+    isDefault: true
+    editable: true
+    jsonData:
+      database: ${DB_NAME}
+      sslmode: disable
+      postgresVersion: 1500
+      maxOpenConns: 100
+      maxIdleConns: 100
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: ${DB_PASS}

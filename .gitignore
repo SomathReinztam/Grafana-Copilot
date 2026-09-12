@@ -1,0 +1,32 @@
+# Env / secretos
+.env
+*.env
+!.env.example
+backend/.env
+!backend/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.log
+
+# Datos / volúmenes
+data/
+.vols/
+grafana_storage/
+sandbox/
+exports/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
