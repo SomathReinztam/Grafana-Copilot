@@ -1,0 +1,23 @@
+# --- Agente / orquestación ---
+langgraph>=1.0,<2.0
+langchain>=1.0,<2.0
+langchain-core>=1.0,<2.0
+langchain-google-genai>=2.0
+
+# --- Superficie in-app (sponsor) ---
+copilotkit>=0.1.30
+
+# --- API ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+
+# --- Datos ---
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+jsonpath-ng>=1.6
+requests>=2.32
+
+# --- Config ---
+python-dotenv>=1.0
+pydantic>=2.7
+pydantic-settings>=2.3
