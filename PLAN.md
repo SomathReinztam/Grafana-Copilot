@@ -33,13 +33,21 @@ alcance, no se salta la siguiente. Vision y multi-analista son **capas encima**,
 - [x] Historial en el state del grafo + `MemorySaver` (thread_id = sesión).
 - [x] Probado: "¿qué tablas...?" → delega al analista → consulta northwind (14 tablas, 830 órdenes).
 
-## Fase 2 — Frontend + escritura con gate (≈60 min)  · *DoD: crear/editar panel real con aprobación*
-- [ ] Web app React + CopilotKit, chat conectado al backend.
-- [ ] Embeber un dashboard/paneles Grafana reales (`<iframe>` d-solo).
-- [ ] `useCopilotReadable` → contexto vivo real hacia `get_current_dashboard_context`.
-- [ ] Tools write con **gate** (`renderAndWaitForResponse`): `create_panel`, `edit_json_panel`,
-      `delete_panel`, `create_dashboard`.
-- [ ] Probar **Flujo 3**: conectar BD → recomendar dashboard → aprobar → se crea en Grafana.
+## Fase 2 — Frontend + escritura con gate  · *DoD: crear/editar panel real con aprobación*
+### Mitad A — Backend ✅ COMPLETA
+- [x] FastAPI sirviendo el grafo vía CopilotKit AG-UI en `/copilotkit`.
+- [x] Bootstrap de Grafana: token de service account + dashboard semilla (`copilot-main`).
+- [x] Tools de escritura en el agente con **gate** vía `interrupt()` de LangGraph.
+- [x] Verificado: el agente creó un panel timeseries real (órdenes/mes) que renderiza con datos.
+
+### Mitad B — Frontend ✅ COMPLETA
+- [x] Web app Next.js + CopilotKit (puerto 3001), conectada al backend por **AG-UI**
+      (`@ag-ui/client` HttpAgent → `/agui`; react-core 1.71 es AG-UI, no GraphQL).
+- [x] Paneles Grafana reales embebidos (`<iframe>`), con recarga al cambiar nº de paneles.
+- [x] `useCopilotReadable` → contexto vivo vía `/api/context` (proxy server-side, sin CORS).
+- [x] Gate en UI: `useLangGraphInterrupt` renderiza aprobar/rechazar.
+- [x] **Flujo verificado end-to-end en navegador**: chat → gate → panel creado en Grafana.
+- [x] Fix: `create_panel_from_spec` para que los paneles del agente rendericen siempre.
 
 ## Fase 3 — Vision (≈45 min)  · *DoD: el agente ve un panel y lo usa para editar*
 - [ ] Tool `look_at_panel(panel_id)` → PNG del renderer como tool result.
