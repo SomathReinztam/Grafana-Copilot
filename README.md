@@ -97,3 +97,7 @@ Grafana reaches this DB via `host.docker.internal:5434` (provisioned datasource 
 
 ## Repository
 https://github.com/SomathReinztam/Grafana-Copilot
+
+## Youtube
+https://www.youtube.com/watch?v=byMte-KQTAw
+
